@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, CancelTokenSource } from 'axios';
 import * as express from 'express';
 import moment from 'moment';
 import { Readable } from 'stream';
@@ -9,6 +9,7 @@ import logger from '../logging/Logger';
 
 const PARAM_TRIM = /[\s'"]/g;
 const URL_TRIM = /[<>\s'"]/g;
+const CancelToken = axios.CancelToken;
 
 export default class GithubClient {
     private instance: AxiosInstance;
@@ -21,13 +22,14 @@ export default class GithubClient {
     }
 
     public fetchRepositories = async (request: express.Request, response: express.Response, next: express.NextFunction) => {
-        const { top, since } = request.query;
+        const { top, since, language } = request.query;
         const staringDate = since ? moment(since).toISOString() : moment().subtract(7, 'days').toISOString();
 
-        if (top) {
-            const queryBuilder = new QueryBuilder();
-            const searchQuery = queryBuilder.since(staringDate).sort().maxPerPage(+top).getQuery();
+        const queryBuilder = new QueryBuilder();
+        queryBuilder.since(staringDate).withLanguageFilter(language).sort();
 
+        if (top) {
+            const searchQuery = queryBuilder.maxPerPage(+top).getQuery();
             try {
                 const res = await this.instance.get(`repositories?${searchQuery}`);
                 return response.status(200).json(res?.data?.items ?? []);
@@ -42,23 +44,33 @@ export default class GithubClient {
             }
 
         }
-        this.fetchReposStream(response, staringDate);
+        this.fetchReposStream(response, queryBuilder);
     };
 
     // fetch repos since last week sorted by number of stars, uses streams for speed and less memory footprint
-    private fetchReposStream(response: express.Response, since: string) {
+    private fetchReposStream(response: express.Response, queryBuilder: QueryBuilder) {
         const JsonStream = new StreamTransformer();
-        const queryBuilder = new QueryBuilder();
-        const searchQuery = queryBuilder.since(since).sort().maxPerPage(50).getQuery();
-        const readable = Readable.from(this.getReposPerPageAndDate(1, searchQuery));
+        const searchQuery = queryBuilder.maxPerPage(50).getQuery();
 
-        readable.pipe(JsonStream).pipe(response.type('json'));
+
+        const source = CancelToken.source();
+        const readable = Readable.from(this.getReposPerPageAndDate(1, searchQuery, source));
+
+        readable.pipe(JsonStream).pipe(response.type('json')).on('close', () => {
+            readable.unpipe();
+            source.cancel('client closed stream');
+        });
     }
 
-    private async* getReposPerPageAndDate(page: number, searchQuery: string): any {
+    //@Note: I choose to use streams here because of the big size of the data, but I could also use pagination
+    //using top was without stream as it does not involve much time and date to serve back
+    private async* getReposPerPageAndDate(page: number, searchQuery: string, source: CancelTokenSource): any {
         logger.debug('fetching page number %d at %s', page, moment().format());
         try {
-            const res = await this.instance.get(`repositories?${searchQuery}&page=${page}`);
+            const res = await this.instance.get(`repositories?${searchQuery}&page=${page}`, {
+                cancelToken: source.token
+            });
+
             yield res.data.items;
 
             const rateLimitingRemaining = res.headers['x-ratelimit-remaining'];
@@ -74,15 +86,21 @@ export default class GithubClient {
             const result = nextPageUrl.match(/&page=(\d{1,3})/);
             const pageNumber = +result[1] ?? 0;
             if (pageNumber > page) {
-                yield* this.getReposPerPageAndDate(pageNumber, searchQuery);
+                yield* this.getReposPerPageAndDate(pageNumber, searchQuery, source);
             }
 
         } catch (error) {
+            if (axios.isCancel(error)) {
+                logger.info('Stream cancelled, reason: %s', error.message);
+                return;
+            }
             logger.error(error, { body: error?.response?.data, headers: error?.response?.headers });
+            //@Note: due to limitation from github I get the rate limit exceeded error
+            // although I do wait up like in the x-ratelimit-reset header
             //@Note: I could use redis to better cache the results and make less requests to github and gain more speed
             if (error?.response?.statusText === 'rate limit exceeded') {
                 await this.waitForRateLimit(error.response);
-                yield* this.getReposPerPageAndDate(page, searchQuery);
+                yield* this.getReposPerPageAndDate(page, searchQuery, source);
             }
         }
     }

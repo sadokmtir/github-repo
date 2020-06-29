@@ -11,12 +11,14 @@ export default class QueryBuilder {
     }
 
     public withLanguageFilter(language: string): this {
-        this.query += `+language:${language}`;
+        if (language) {
+            this.query += `+language:${language}`;
+        }
         return this;
     }
 
     public sort(isAscending = false): this {
-        this.query += `&sort:${isAscending ? 'asc': 'desc'}`;
+        this.query += `&sort:${isAscending ? 'asc' : 'desc'}`;
         return this;
     }
 
