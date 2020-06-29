@@ -1,0 +1,28 @@
+version: '3.4'
+
+networks:
+  prosperity:
+    driver: bridge
+services:
+  node:
+    container_name: prosperity-node
+    build:
+      context: ./
+      dockerfile: docker/server/Dockerfile
+      target: base
+    ports:
+      - "4000:3030"
+    volumes:
+      - ./:/home/node/app
+    environment:
+      TZ: CET
+      server__port: 3030
+    logging: #read them from /var/lib/docker/containers/*/*-json.log
+      driver: "json-file"
+      options:
+        max-size: "1M"
+        max-file: "100"
+    restart: always
+    networks:
+      - prosperity
+    command: ["npm", "run" ,"watch"]

@@ -1,0 +1,12 @@
+{
+  "server": {
+    "port": 5000
+  },
+  "logger": {
+    "fileLevel": "error",
+    "level": "debug"
+  },
+  "remoteServer": {
+    "url": "https://api.github.com/"
+  }
+}
