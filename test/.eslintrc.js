@@ -1,5 +1,9 @@
 module.exports = {
-    extends: 'eslint:recommended',
+    extends: [
+        'plugin:jest/recommended',
+        'eslint:recommended',
+        '../.eslintrc'
+    ],
     env: {
         es6: true,
         jest: true
@@ -9,5 +13,5 @@ module.exports = {
             diagnostics: false,
             pathRegex: /\.(spec|test)\.ts$/
         }
-    },
+    }
 };

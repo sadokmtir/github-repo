@@ -9,7 +9,7 @@
     "test": "jest --forceExit --coverage --verbose",
     "watch-test": "npm run test -- --watchAll",
     "tslint": "tslint -c tslint.json -p tsconfig.json",
-    "serve-debug": "nodemon --exec node --inspect-brk -r ts-node/register ./src/main.ts",
+    "watch-debug": "nodemon --exec node --inspect-brk -r ts-node/register ./src/main.ts",
     "build": "npm run build-ts",
     "build-ts": "rm -rf dist && tsc"
   },
