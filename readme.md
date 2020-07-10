@@ -39,9 +39,6 @@ As here we have a limited number this won't result on huge chunk of date and lat
 Some General Notes:
 * This project was created using typescript and does not include an explicit build step (for transpiling typescript to js), it is done using the `ts-node`
  (https://github.com/TypeStrong/ts-node) which eliminates the burden of figuring out the error line on the actual typescript file (it has a nice source map support).
-* There is validation in place for the all the query params (top, since and language) flag.
-* There is a docker multi-stage building for the container in different environments.
-* I could use pagination as well but as it was not mentioned neither pagination nor stream I choose stream which could be integrated with observable on the frontend for real time response.
+ 
+Next Steps:
 * If would invest more time I would add caching to this solution probably using redis.
-#### PS: Please at the end give some technical feedback to this solution, as I invested my private time on it, I would like to get valuable feedback for my code/solution, Thanks !                                
-
